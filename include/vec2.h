@@ -18,4 +18,7 @@ vec2 vec2_add(vec2 a, vec2 b);
 vec2 vec2_mult(vec2 a, vec2 b);
 vec2 vec2_div(vec2 a, vec2 b);
 
+vec2 vec2_max(vec2 a, vec2 b);
+float vec2_length(vec2 v);
+
 #endif

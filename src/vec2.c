@@ -1,4 +1,5 @@
 #include "../include/vec2.h"
+#include <math.h>
 
 // Scalar operations
 vec2 vec2_subf(vec2 v, float scalar) {
@@ -45,3 +46,9 @@ vec2 vec2_div(vec2 a, vec2 b) {
   vec2 c = {a.x / b.x, a.y / b.y};
   return c;
 }
+
+vec2 vec2_max(vec2 a, vec2 b) {
+  return (vec2){fmaxf(a.x, b.x), fmaxf(a.y, b.y)};
+}
+
+float vec2_length(vec2 v) { return sqrtf(v.x * v.x + v.y * v.y); }

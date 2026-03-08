@@ -71,3 +71,11 @@ vec4 vec4_sin(vec4 v) {
   r.w = sinf(v.w);
   return r;
 }
+
+vec4 vec4_pow(vec4 a, vec4 b) {
+  return (vec4){powf(a.x, b.x), powf(a.y, b.y), powf(a.z, b.z), powf(a.w, b.w)};
+}
+
+vec4 vec4_tanh(vec4 a) {
+  return (vec4){tanhf(a.x), tanhf(a.y), tanhf(a.z), tanhf(a.w)};
+}

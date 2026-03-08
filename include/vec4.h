@@ -22,5 +22,7 @@ vec4 vec4_div(vec4 a, vec4 b);
 
 vec4 vec4_cos(vec4 v);
 vec4 vec4_sin(vec4 v);
+vec4 vec4_pow(vec4 a, vec4 b);
+vec4 vec4_tanh(vec4 a);
 
 #endif
