@@ -10,12 +10,12 @@
 #include "include/Vec4.h"
 #include "include/perlin.h"
 
-
 #include <cmath>
 #include <cstdio>
 
 Vec4 shader1(Vec2 r, Vec2 FC, Vec4 o, float t);
 Vec4 shader2(Vec2 r, Vec2 FC, Vec4 o, float t);
+Vec4 shader3(Vec2 r, Vec2 FC, Vec4 o, float t);
 
 int main() {
   int frames = 60, frameRate = 60;
@@ -38,7 +38,8 @@ int main() {
 
         // // this shader's eq needs more testing due to complexity
         // o = shader1(r, FC, o, t);
-        o = shader2(r, FC, o, t);
+        // o = shader2(r, FC, o, t);
+        o = shader3(r, FC, o, t);
         fputc(o.x * 255, file);
         fputc(o.y * 255, file);
         fputc(o.z * 255, file);
@@ -66,63 +67,41 @@ int main() {
  * }
  * o = tanh(pow(o / 1e2, vec4(1.5)));
  */
-// vec4 shader1(vec2 r, vec2 FC, vec4 o, float t) {
-//   vec2 p = vec2_divf(vec2_sub(FC, vec2_multf(r, 0.5f)), r.y);
-//   mat2 M = {8, -6, 6, 8}; // 2x2 matrix
-//   p = mat2_mult_vec2(M, p);
-//   vec2 v = {0.0f, 0.0f};
-//   float f = 3.0f + perlin2d(p.x + t * 7.0f, p.y, 0.1f, 4);
-
-//   for (float i = 0; i++ < 50.0f; i++) {
-//     vec4 tmp = {1, 2, 3, 1};
-//     vec2 tmp1 = {v.x * f * 0.2f, v.y};
-
-//     // parts of the full equation then they are added to the output
-//     vec4 tmp2 = vec4_addf(vec4_cos(vec4_multf(tmp, sin(i))), 1.0f);
-//     vec4 tmp3 = vec4_multf(tmp2, exp(sin(i * i + t)));
-//     float length = vec2_length(vec2_max(v, tmp1));
-//     o = vec4_add(o, vec4_divf(tmp3, length));
-
-//     // updating v
-//     v = vec2_add(
-//         p, vec2_multf(vec2_cos(vec2_addf(vec2_multf((vec2){11.0f, 9.0f}, i),
-//                                          i * i + (t + p.x * 0.1f) * 0.03f)),
-//                       5.0f));
-//   }
-
-//   vec4 oneAndHalf = {1.5f, 1.5f, 1.5f, 1.5f};
-//   o = vec4_tanh(vec4_pow(vec4_divf(o, 1e2), oneAndHalf));
-//   return o;
-// }
-
 Vec4 shader1(Vec2 r, Vec2 FC, Vec4 o, float t) {
+  // Transform pixel coordinates to [-0.5,0.5] range and apply matrix
   Vec2 p = (FC - r * 0.5f) / r.y;
-
   Mat2 M(8, -6, 6, 8);
   p = M * p;
 
   Vec2 v(0.0f, 0.0f);
 
-  float f = 3.0f + perlin2d(p.x + t * 7.0f, p.y, 0.1f, 4);
+  // Normalize perlin noise to ~[0,1] (your noise may output 0-255)
+  float f = 3.0f + perlin2d(p.x + t * 7.0f, p.y, 0.1f, 4) / 255.0f;
 
-  for (float i = 0; i < 50.0f; i++) {
-    Vec4 tmp(1, 2, 3, 1);
-    Vec2 tmp1(v.x * f * 0.2f, v.y);
+  for (float i = 0.0f; i < 50.0f; i += 1.0f) {
+    // Base vector for color manipulation
+    Vec4 tmp(1.0f, 2.0f, 3.0f, 1.0f);
+    Vec2 tmp1(v.x * f * 0.02f, v.y); // Scale v for denominator
 
-    Vec4 tmp2 = (tmp * std::sin(i)).cos() + 1.0f;
-    Vec4 tmp3 = tmp2 * std::exp(std::sin(i * i + t));
+    // Compute color contribution
+    Vec4 tmp2 = (tmp * std::sin(i)).cos() + 1.0f; // cos(sin(i)*tmp)+1
+    Vec4 tmp3 =
+        tmp2 * std::exp(std::sin(i * i + t)); // multiply by exp(sin(...))
 
+    // Safe denominator: avoid division by zero
     float len = Vec2::max(v, tmp1).length();
+    len = std::max(len, 1e-3f);
 
     o += tmp3 / len;
 
-    v = p + (Vec2(11.0f, 9.0f) * i + (i * i + (t + p.x * 0.1f) * 0.03f)).cos() *
-                5.0f;
+    // Update v for next iteration
+    Vec2 arg = Vec2(11.0f, 9.0f) * i + (i * i + (t + p.x * 0.1f) * 0.03f);
+    v = p + arg.cos() * 5.0f;
   }
 
+  // Final scaling and non-linear mapping
   Vec4 oneAndHalf(1.5f, 1.5f, 1.5f, 1.5f);
-
-  o = Vec4::pow(o / 1e2f, oneAndHalf).tanh();
+  o = Vec4::pow(o / 100.0f, oneAndHalf).tanh();
 
   return o;
 }
@@ -131,25 +110,64 @@ Vec4 shader1(Vec2 r, Vec2 FC, Vec4 o, float t) {
  * vec2 p=(FC.xy*2.-r)/r.y;
  * o+=.1/abs(length(p)-.5+.01/(p.x-p.y));
  */
-// vec4 shader2(vec2 r, vec2 FC, vec4 o, float t) {
-//   vec2 p = vec2_divf(vec2_sub(vec2_multf(FC, 2.0f), r), r.y);
-//   float denom = p.x - p.y;
-//   if (fabs(denom) < 1e-6f)
-//     denom = (denom < 0 ? -1e-6f : 1e-6f);
-//   float val = 0.1f / fabs(vec2_length(p) - 0.5f + 0.01f / denom);
-//   o = vec4_addf(o, val);
-//   return o;
-// }
 Vec4 shader2(Vec2 r, Vec2 FC, Vec4 o, float t) {
   Vec2 p = (FC * 2.0f - r) / r.y;
 
   float denom = p.x - p.y;
-  if (std::fabs(denom) < 1e-6f)
-    denom = (denom < 0 ? -1e-6f : 1e-6f);
+  denom = (std::fabs(denom) < 1e-6f) ? 1e-6f : denom;
 
   float val = 0.1f / std::fabs(p.length() - 0.5f + 0.01f / denom);
 
   o = o + val;
+
+  return o;
+}
+
+Vec4 shader3(Vec2 r, Vec2 FC, Vec4 o, float t) {
+  float z = 0.0f;
+  for (int i = 0; i < 20; i++) { // i++ < 2e1
+    // p = z * normalize(FC.rgb*2 - r.xyx)
+    Vec4 fc_rgb(FC.x, FC.y, 0.0f, 0.0f);
+    Vec4 r_xyx(r.x, r.y, r.x, 0.0f);
+    Vec4 diff = fc_rgb * 2.0f - r_xyx;
+
+    float len_diff =
+        std::sqrt(diff.x * diff.x + diff.y * diff.y + diff.z * diff.z);
+    Vec4 p = diff * (z / len_diff); // normalize and scale by z
+
+    // p = vec3(atan(p.y/.2, p.x)*2., p.z/3., length(p.xy)-5.-z*0.2)
+    float px = std::atan2(p.y, 0.2f) * 2.0f;
+    float py = p.z / 3.0f;
+    float pz = std::sqrt(p.x * p.x + p.y * p.y) - 5.0f - z * 0.2f;
+
+    p = Vec4(px, py, pz, 0.0f);
+
+    // inner loop: for(d=1.; d<7.; d++) p += sin(p.yzx*d + t + 0.3*i)/d
+    for (int d = 1; d < 7; d++) {
+      Vec4 tmp(p.y, p.z, p.x, 0.0f); // yzx swizzle
+      Vec4 s(std::sin(tmp.x * d + t + 0.3f * i),
+             std::sin(tmp.y * d + t + 0.3f * i),
+             std::sin(tmp.z * d + t + 0.3f * i), 0.0f);
+      p += s / float(d);
+    }
+
+    // z += d = length(vec4(0.4*cos(p) - 0.4, p.z))
+    Vec4 tmp_cos = p.cos() * 0.4f - Vec4(0.4f, 0.4f, 0.4f, 0.0f);
+    Vec4 len_vec(tmp_cos.x, tmp_cos.y, p.z, 0.0f);
+    float d = std::sqrt(len_vec.x * len_vec.x + len_vec.y * len_vec.y +
+                        len_vec.z * len_vec.z);
+    z += d;
+
+    // o += (cos(p.x + i*0.4 + z + vec4(6,1,2,0)) + 1) / d
+    Vec4 offset(6.0f, 1.0f, 2.0f, 0.0f);
+    Vec4 add_val =
+        Vec4(p.x + i * 0.4f + z + offset.x, p.x + i * 0.4f + z + offset.y,
+             p.x + i * 0.4f + z + offset.z, 0.0f);
+    o += (add_val.cos() + 1.0f) / d;
+  }
+
+  // final output: o = tanh(o*o / 4e2)
+  o = (o * o / 400.0f).tanh();
 
   return o;
 }

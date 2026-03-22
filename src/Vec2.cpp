@@ -158,3 +158,13 @@ Vec2 Vec2::max(const Vec2 &a, const Vec2 &b) {
 }
 
 float Vec2::length() const { return std::sqrt(x * x + y * y); }
+
+// Rotate a 2D vector by angle (radians)
+Vec2 rotate2D(const Vec2 &v, float angle) {
+  float cosA = std::cos(angle);
+  float sinA = std::sin(angle);
+  return Vec2(v.x * cosA - v.y * sinA, v.x * sinA + v.y * cosA);
+}
+
+// Overload to rotate a vector around origin if only angle is given
+Vec2 rotate2D(float angle) { return Vec2(std::cos(angle), std::sin(angle)); }
